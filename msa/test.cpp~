@@ -1,0 +1,8 @@
+#include <iostream>
+
+using namespace std;
+
+int main(){
+
+cout << (long double)(1.0)/(long double)(4.49244e-1678) << endl;
+}

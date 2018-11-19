@@ -1,0 +1,310 @@
+//#include <opencv2/highgui/highgui.hpp>
+//#include <opencv2/nonfree/nonfree.hpp>
+//#include <opencv2/legacy/legacy.hpp>
+//#include <opencv2/core/core.hpp>
+//#include <opencv2/imgproc/imgproc.hpp>
+//#include <iostream>
+//#include <string>
+//#include <io.h>
+//#include<direct.h>
+//#include <fstream>
+//#include <time.h> 
+//#include <opencv2/nonfree/features2d.hpp>  
+//#include <iostream> 
+//#include <cmath>
+
+
+
+
+
+
+
+// 获取两个椭圆和一个矩形重叠的面积
+double getE2llipseRectArea(Mat gray, vector<Point> region, vector<Point> region2, Rect rect) {
+	double erArea1 = getEllipseRectArea(gray, region, rect);
+	double erArea2 = getEllipseRectArea(gray, region2, rect);
+	double e2Area = getE2llipseArea(gray, region, region2);
+	double area = 0;
+	if (erArea1 != 0 && erArea2 != 0 && e2Area != 0) {
+		RotatedRect a = fitEllipse(region);
+		RotatedRect b = fitEllipse(region2);
+		Mat mask(gray.rows, gray.cols, CV_8UC1, Scalar(0));
+		// 如果两个椭圆有重叠，则填充后重叠区域会变成一个，在统计这个联通的区域的面积
+		ellipse(mask, a, Scalar(255), -1);
+		ellipse(mask, b, Scalar(255), -1);
+		rectangle(mask, rect.tl(), rect.br(), Scalar(255), -1);
+		vector<vector<Point>> contours;
+		vector<Vec4i> hierarchy;
+		findContours(mask, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+		if (contours.size() == 1) {
+			double aerea = getContoursArea(gray, region);
+			double berea = getContoursArea(gray, region2);
+			area = erArea1 + erArea2 + e2Area + abs(contourArea(contours[0], true)) - aerea - berea - mlength*mlength;	// 这个公式不理解
+		}
+		return area;
+	}
+}
+
+// 遍历矩形判断是否同时在椭圆A和B中，
+
+
+
+
+
+
+
+//获取两个椭圆重叠的面积
+double getE2llipseArea(Mat gray, vector<Point> region, vector<Point> region2) {
+	double earea1 = getContoursArea(gray, region);
+	double earea2 = getContoursArea(gray, region2);
+	RotatedRect a = fitEllipse(region);
+	RotatedRect b = fitEllipse(region2);
+	Mat mask(gray.rows, gray.cols, CV_8UC1, Scalar(0));
+	// 如果两个椭圆有重叠，则填充后重叠区域会变成一个，在统计这个联通的区域的面积
+	ellipse(mask, a, Scalar(255), -1);
+	ellipse(mask, b, Scalar(255), -1);
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierarchy;
+	findContours(mask, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+	double area = 0;
+	if (contours.size() == 1) {
+		area = earea1 + earea2 - abs(contourArea(contours[0], true));
+	}
+	return area;
+}
+
+
+// 获取椭圆和矩形重叠面积
+double getEllipseRectArea(Mat gray, vector<Point> region, Rect rect){
+	double eArea = getContoursArea(gray, region);
+	double rArea = mlength * mlength;				// mlength的值是？
+	RotatedRect a = fitEllipse(region);
+	Mat mask(gray.rows, gray.cols, CV_8UC1, Scalar(0));
+	ellipse(mask, a, Scalar(255), -1);
+	rectangle(mask, rect.tl(), rect.br(), Scalar(255), -1);
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierarchy;
+	findContours(mask, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+	double area = 0;
+	if (contours.size() == 1) {
+		area = eArea + rArea - abs(contourArea(contours[0], true));
+	}
+	return area;
+}
+
+
+
+
+
+// 用于计算每个椭圆的面积
+double getContoursArea(Mat gray, vector<Point> region) {
+	// 拟合椭圆
+	RotatedRect a = fitEllipse(region);
+	Mat mask(gray.rows, gray.cols, CV_8UC1, Scalar(0));
+	ellipse(mask, a, Scalar(255), -1);
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierarchy;
+	findContours(mask, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+	//drawContours(mask, contours, -1, Scalar(255), CV_FILLED, 8);
+	drawContours(mask, contours, -1, Scalar(255), 0, 8);
+	double area = 0;
+	if (contours.size() >= 1)
+		area = abs(contourArea(contours[0], true));
+	return area;
+
+}
+
+
+// 在原图上画椭圆
+void paintEllipse(vector<Point> region, Mat img){
+	// 拟合椭圆
+	RotatedRect rotatedRect = fitEllipse(region);
+	// 画椭圆
+	ellipse(img, rotatedRect, Scalar(0, 255, 0));
+	Point2f P[4];
+	rotatedRect.points(P);
+	for (int j = 0; j <= 3; j++)
+	{
+		// 画外接矩形的四条边
+		line(img, P[j], P[(j + 1) % 4], Scalar(0, 0, 255), 1);
+	}
+	// 画质心
+	circle(img, rotatedRect.center, 2, Scalar(0, 255, 0));
+}
+
+
+
+
+
+
+
+
+///*
+//把椭圆数据单独提出来，保存到一个新的mat中去
+//原理是把区域轮廓在mask中用白线画出来，其余地方都是0，
+//检测轮廓并填充，然后给原图加一层马赛克只显示想要的部分
+//*/
+//void getEllipsePic(Mat gray, RotatedRect rect, Mat &result) {
+//	Mat mask(gray.rows, gray.cols, CV_8UC1, Scalar(0));
+//	ellipse(mask, rect, Scalar(255));
+//	vector<vector<Point>> contours;
+//	vector<Vec4i> hierarchy;
+//	findContours(mask, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+//	drawContours(mask, contours, 0, Scalar(255), CV_FILLED, 8);
+//	Mat dstImg = gray.clone();
+//	Rect rectROI(0, 0, dstImg.cols, dstImg.rows);
+//	Mat srcROI = dstImg(rectROI);
+//	Mat dst1;
+//	srcROI.copyTo(dst1, mask);
+//	// 生成椭圆的外接矩形，并把外接矩形扣出来
+//	Rect rectROI2 = boundingRect(contours[0]);
+//	IplImage iplImage = dst1;
+//	cvSetImageROI(&iplImage, rectROI2);
+//	Mat iplPro(&iplImage, true);
+//	iplPro.copyTo(result);
+//	cvResetImageROI(&iplImage);
+//}
+//
+
+
+//获取仿射变换的图形， 分别为原图，起始角度，结束角度和步长
+//bool getAffinePicture(string srcPath, int start, int end, int step) {
+//	Mat src = imread(srcPath);
+//	if (!src.data) {
+//		return false;
+//	}
+//	int nRow = src.rows;
+//	int nCol = src.cols;
+//
+//	//定义仿射变换的二维点数组
+//	Point2f srcPoint[3], resPoint[3];
+//	srcPoint[0] = Point2f(0, 0);
+//	srcPoint[1] = Point2f(nCol - 1, 0);
+//	srcPoint[2] = Point2f(0, nRow - 1);
+//
+//	for (int i = start; i <= end; i = i + step) {
+//		resPoint[0] = Point2f(0, nRow*0.5);
+//		resPoint[1] = Point2f(nCol*0.85, nRow*coefficient*i);
+//		resPoint[2] = Point2f(nCol*0.15, nRow*(1 - coefficient*i));
+//		Mat warp(Size(2, 3), CV_32F);
+//		Mat result = Mat::zeros(nRow, nCol, src.type());
+//		warp = getAffineTransform(srcPoint, resPoint);
+//		warpAffine(src, result, warp, result.size());
+//		ostringstream osstr;
+//		osstr << "MSER图片//吉布提港-5.jpg";
+//		imwrite(osstr.str(), result);
+//	}
+//	return true;
+//
+//}
+
+
+
+//// 傅里叶变换
+//void DFT(Mat srcImage, Mat &dftResultImage) {
+//	// 将输入图像扩大至最佳尺寸
+//	int nRows = getOptimalDFTSize(srcImage.rows);
+//	int nCols = getOptimalDFTSize(srcImage.cols);
+//	Mat resultImage;
+//	// 以最佳尺寸扩充原图，把原图放在左上角，其余部分填充0
+//	copyMakeBorder(srcImage, resultImage, 0, nRows - srcImage.rows, 0, nCols - srcImage.cols, BORDER_CONSTANT, Scalar::all(0));
+//	// 为傅里叶变换的结果(实部和虚部)分配空间
+//	Mat planes[] = {Mat_<float>(resultImage),Mat::zeros(resultImage.size(), CV_32F)};
+//	Mat completeI;
+//	// 为扩充后的图像增加一个0通道
+//	merge(planes, 2, completeI);
+//	// 进行离散傅里叶变换
+//	dft(completeI, completeI);
+//	// 将复数转化为幅度
+//	split(completeI, planes);
+//	magnitude(planes[0], planes[1], planes[0]);
+//	dftResultImage = planes[0];
+//
+//
+//	// 对数尺度缩放
+//	dftResultImage += 1;
+//	log(dftResultImage, dftResultImage);
+//	
+//	// 剪切和充分布幅度象限
+//	dftResultImage = dftResultImage(Rect(0, 0, srcImage.cols, srcImage.rows));
+//	// 归一化图像
+//	normalize(dftResultImage, dftResultImage,0,1,CV_MINMAX);
+//	/*
+//	int cx = dftResultImage.cols / 2;
+//	int cy = dftResultImage.rows / 2;
+//	Mat tmp;
+//	// top-left 为每个象限创建roi
+//	Mat q0(dftResultImage, Rect(0, 0, cx, cy));
+//	// top-right
+//	Mat q1(dftResultImage, Rect(cx, 0, cx, cy));
+//	// bottom-left
+//	Mat q2(dftResultImage, Rect(0, cy, cx, cy));
+//	// bottom-right
+//	Mat q3(dftResultImage, Rect(cx, cy, cx, cy));
+//	// 交换象限
+//	q0.copyTo(tmp);
+//	q3.copyTo(q0);
+//	tmp.copyTo(q3);
+//	q1.copyTo(tmp);
+//	q2.copyTo(q1);
+//	tmp.copyTo(q2);
+//	*/
+//}
+
+
+
+
+msa代码 
+
+/*************************************************************************
+for (int i = 0; i < regions.size(); i++) {
+//		// 在原图上画出mser区域
+//		paintEllipse(regions[i], src);
+//		continue;
+//		// 拟合椭圆
+//		RotatedRect rotatedRect = fitEllipse(regions[i]);
+//		if (rotatedRect.size.height * rotatedRect.size.width > 50000) {
+//			Mat innerResult;
+//			getEllipsePic(gray, rotatedRect, innerResult);
+//			// 对原图进行傅里叶变换
+//			Mat dftResult;
+//			DFT(innerResult, dftResult);
+//			vector<long double> des;
+//			for (int j = 0; j < 20; j++) {
+//				double alpha = *(as + j);
+//				double beta = *(bs + j);
+//				double gama = 1 - alpha - beta;
+//				Size ksize(5, 5);
+//				Mat ablurMat,bblurMat,gblurMat;
+//				GaussianBlur(innerResult, ablurMat, ksize, alpha);
+//				GaussianBlur(innerResult, bblurMat, ksize, beta);
+//				GaussianBlur(innerResult, gblurMat, ksize, gama);
+//				Mat adftResult, bdftResult, gdftResult;
+//				DFT(ablurMat, adftResult);
+//				DFT(bblurMat, bdftResult);
+//				DFT(gblurMat, gdftResult);
+//				// 计算总的乘积和
+//				long double sum = 0;
+//				long double value = 0;
+//				long double temp = dftResult.at<long double>(dftResult.rows / 2, dftResult.cols / 2);
+//				for (int r = 0; r < dftResult.rows; r++) {
+//					for (int c = 0; c < dftResult.cols; c++) {
+//						long double dgray = dftResult.at<long double>(dftResult.rows -1 - r, dftResult.cols - 1 -c);
+//						long double agray = adftResult.at<long double>(r, c)/temp;
+//						long double bgray = bdftResult.at<long double>(r, c)/temp;
+//						long double ggray = gdftResult.at<long double>(r, c)/temp;
+//						sum += dgray * agray * bgray * ggray;
+//						//cout << "sum = " << sum << endl;
+//						//cout << "dgray = " << dgray << "  agray = " << agray << "  bgray = " << bgray << "  ggray = " << ggray << endl;
+//					}
+//				}
+//				value = sum / (dftResult.rows * dftResult.cols);
+//				des.push_back(value);
+//				cout << "des = " << value << " temp = " << temp << "   sum = " << sum << endl;
+//			}
+//			descpters.push_back(des);
+//		}
+//	}
+/*****************************************************************************************
+
+

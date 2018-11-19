@@ -1,0 +1,4 @@
+num,area1,area2_new,i -> j,overlap_area,overlap_area_new
+1,118.5,1212,175.5,1303,61,770 ->1,0,0
+0 ->2,0,0
+1 ->2,0,0

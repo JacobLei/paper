@@ -1,0 +1,80 @@
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/features2d/features2d.hpp>
+
+#include <iostream>
+#include <string>
+#include <vector>
+#include <ctime>
+#include <cstdlib>
+#include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <cmath>
+
+using namespace cv;
+using namespace std;
+
+// 时间函数
+string  getCurrentDate()
+{
+    time_t nowtime;  
+    nowtime = time(NULL); //获取日历时间   
+    char tmp[64];   
+    strftime(tmp,sizeof(tmp),"%Y-%m-%d-%H-%M-%S",localtime(&nowtime));   
+    return tmp;
+}
+
+// 用于计算每个椭圆的面积
+double getContoursArea(Mat gray, vector<Point> region) {
+	// 拟合椭圆
+	RotatedRect a = fitEllipse(region);
+	Mat mask(gray.rows, gray.cols, CV_8UC1, Scalar(0));
+	ellipse(mask, a, Scalar(255), -1);
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierarchy;
+	findContours(mask, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+	//drawContours(mask, contours, -1, Scalar(255), CV_FILLED, 8);
+	drawContours(mask, contours, -1, Scalar(255), 0, 8);
+	double area = 0;
+	if (contours.size() == 1)
+		area = abs(contourArea(contours[0], true));
+	return area;
+
+}
+
+int main (int argc, char **argv)
+{
+    Mat image, grayImage;
+    string picName = "./srcPic/LenaRGB.bmp";
+    image = imread(picName, CV_LOAD_IMAGE_COLOR );
+    if (!image.data) {
+        cout << "No image data\n";
+        return -1;
+    }
+         
+    cvtColor(image, grayImage, CV_RGB2GRAY);	// 灰度化处理
+    
+ 	// 创建MSER类
+ 	MSER ms;
+    vector<vector<Point> > regions;				// 用于组快区域的像素点集
+ 	ms(grayImage, regions, Mat());				// 计算MSER区域
+ 	
+	for(int i=0; i<regions.size(); ++i){
+		cout << i << "  " << getContoursArea(grayImage, regions[i]) << endl;
+	}	
+
+	
+	
+    // 将数据写到csv中
+/*    string retNameCsv = "./res/overlapping" + getCurrentDate() + ".csv";
+    ofstream outFile;
+    outFile.open(retNameCsv, ios::out);
+    for(int i=0; i<areas.size(); ++i){
+    	outFile << "The num." << i+1 << " area is : " << ',' << areas[i] << endl;
+    }
+    outFile.close();
+*/    
+    return 0;
+}
